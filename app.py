@@ -3,112 +3,109 @@ import pandas as pd
 from google import genai
 import yfinance as yf
 import re
+import plotly.graph_objects as go
 
-# 1. Page Config
-st.set_page_config(page_title="Moonshot Finder 2026", layout="wide", page_icon="🚀")
+# 1. Terminal Styling (Dark Mode & High Density)
+st.set_page_config(page_title="ALPHA TERMINAL v3", layout="wide", page_icon="⚡")
 
-# Modern CSS injection
-st.html("""
+st.markdown("""
     <style>
-    .stDataFrame { border: 1px solid #e6e9ef; border-radius: 10px; }
-    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #007bff; color: white; }
+    [data-testid="stAppViewContainer"] { background-color: #0e1117; color: #ffffff; }
+    .stMetric { background-color: #1a1c24; border: 1px solid #30363d; padding: 15px; border-radius: 5px; }
+    .stDataFrame { border: 1px solid #30363d; }
+    .stButton>button { width: 100%; border-radius: 2px; background-color: #21262d; border: 1px solid #30363d; color: #58a6ff; }
+    .stButton>button:hover { border-color: #58a6ff; }
+    h1, h2, h3 { color: #58a6ff !important; font-family: 'Courier New', monospace; }
     </style>
-""")
+    """, unsafe_allow_html=True)
 
-st.title("🚀 Asymmetric Moonshot Finder")
-st.caption("Tier 2/3 Supply Chain Intelligence | March 2026 Edition")
-
-# 2. API Key Security
+# 2. Setup
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("Missing GEMINI_API_KEY in Streamlit Secrets!")
+    st.error("MISSING API KEY")
     st.stop()
 
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 3. Sidebar Inputs
-st.sidebar.header("Research Parameters")
-sector = st.sidebar.text_input("Supply Chain Bottleneck:", "AI Data Center Cooling")
+# 3. Sidebar (Search & Filter)
+with st.sidebar:
+    st.title("🗄️ TERMINAL CTL")
+    sector_input = st.text_input("STRATEGY FOCUS:", "AI Power Grid Hardware")
+    st.divider()
+    model_choice = st.selectbox("LLM ENGINE", ["gemini-2.5-flash", "gemini-3-flash-preview"])
+    st.caption("v3.2.0-stable | Build: 2026.03")
 
-# 4. Main Logic
-if st.button("Generate Alpha Report"):
-    # --- PHASE 1: GENAI RESEARCH ---
-    with st.spinner("Analyzing global supply chains..."):
+# 4. Main Header
+st.title("⚡ ALPHA TERMINAL: SUPPLY CHAIN INTELLIGENCE")
+
+# 5. Core Execution logic
+if st.button("EXECUTE DEEP RESEARCH"):
+    # --- PHASE 1: QUALITATIVE INTELLIGENCE ---
+    with st.spinner("QUERYING GLOBAL SUPPLY CHAIN DATA..."):
         try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            
-            # Using the STABLE alias to prevent 404 errors
-            # gemini-2.5-flash is currently the production-stable version
-            MODEL_ID = "gemini-2.5-flash" 
-            
             prompt = (
-                f"Identify 3 obscure, publicly traded Tier 2 or Tier 3 suppliers for {sector}. "
-                "Focus on small-cap companies with asymmetric upside. "
-                "Format your response with a thesis for each, and end exactly with: "
-                "TICKERS: TICKER1, TICKER2, TICKER3"
+                f"Identify 3 publicly traded companies that are critical but obscure Tier 2/3 suppliers for {sector_input}. "
+                "Provide a professional 'Institutional Note' for each. "
+                "At the end, provide exactly: TICKERS: T1, T2, T3"
             )
+            response = client.models.generate_content(model=model_choice, contents=prompt)
+            raw_text = response.text
             
-            response = client.models.generate_content(
-                model=MODEL_ID,
-                contents=prompt
-            )
+            # Extract Tickers
+            match = re.search(r'TICKERS:?\s*([\w\s,]+)', raw_text, re.IGNORECASE)
+            tickers = [t.strip().upper() for t in match.group(1).split(',')] if match else []
             
-            thesis_text = response.text
-            st.subheader("💡 Investment Thesis")
-            st.info(thesis_text)
-            
+            # Display Research Note
+            with st.expander("📝 VIEW INSTITUTIONAL RESEARCH NOTE", expanded=True):
+                st.write(raw_text)
+                
         except Exception as e:
-            st.error(f"Gemini API Error: {e}")
+            st.error(f"RESEARCH_FAILURE: {e}")
             st.stop()
 
-    # --- PHASE 2: DATA EXTRACTION & YFINANCE ---
-    with st.spinner("Fetching real-time market data..."):
-        # Improved Regex to find tickers after the keyword 'TICKERS:'
-        match = re.search(r'TICKERS:?\s*([\w\s,.]+)', thesis_text, re.IGNORECASE)
+    # --- PHASE 2: QUANTITATIVE DASHBOARD ---
+    if tickers:
+        st.subheader("📊 QUANTITATIVE OVERVIEW")
         
-        if match:
-            raw_list = match.group(1).replace('.', '').split(',')
-            tickers = [t.strip().upper() for t in raw_list if t.strip()]
-            
-            metrics = []
-            for ticker in tickers:
-                try:
-                    stock = yf.Ticker(ticker)
-                    # We use a 2-second timeout for info to keep the app snappy
-                    info = stock.info
-                    
-                    price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
-                    mkt_cap = info.get('marketCap', 0)
-                    
-                    metrics.append({
-                        "Ticker": ticker,
-                        "Company": info.get('longName', 'Unknown'),
-                        "Price": price,
-                        "Market Cap": mkt_cap,
-                        "Div Yield": info.get('dividendYield', 0),
-                        "Volume": info.get('regularMarketVolume', 0)
-                    })
-                except:
-                    continue
-
-            if metrics:
-                st.subheader("📊 Quantitative Snapshot")
-                df = pd.DataFrame(metrics)
+        # We loop through tickers and show them in a mobile-friendly grid
+        for ticker in tickers:
+            try:
+                stock = yf.Ticker(ticker)
+                info = stock.info
+                hist = stock.history(period="1mo")
                 
-                # Cleanup formatting
-                def format_mkt_cap(val):
-                    if val >= 1e9: return f"${val/1e9:.2f}B"
-                    if val >= 1e6: return f"${val/1e6:.2f}M"
-                    return "N/A"
+                # Header for each company
+                st.divider()
+                col_title, col_price = st.columns([3, 1])
+                with col_title:
+                    st.header(f"{ticker}: {info.get('longName', 'N/A')}")
+                with col_price:
+                    price = info.get('currentPrice', 0)
+                    change = info.get('regularMarketChangePercent', 0)
+                    st.metric("PRICE", f"${price:.2f}", f"{change:.2f}%")
 
-                df['Market Cap'] = df['Market Cap'].apply(format_mkt_cap)
-                df['Price'] = df['Price'].apply(lambda x: f"${x:,.2f}" if x > 0 else "N/A")
-                df['Div Yield'] = df['Div Yield'].apply(lambda x: f"{x*100:.2f}%" if x else "0%")
+                # Bloomberg-style Key Ratios
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("MKT CAP", f"${info.get('marketCap', 0)/1e9:.2f}B")
+                c2.metric("FWD P/E", info.get('forwardPE', 'N/A'))
+                c3.metric("ROE", f"{info.get('returnOnEquity', 0)*100:.2f}%")
+                c4.metric("D/E RATIO", info.get('debtToEquity', 'N/A'))
 
-                st.dataframe(df, use_container_width=True, hide_index=True)
-            else:
-                st.warning("Could not find market data for the suggested tickers.")
-        else:
-            st.error("The AI didn't provide tickers in the requested format. Please try again.")
+                # mini Chart (Plotly)
+                fig = go.Figure(data=[go.Candlestick(
+                    x=hist.index,
+                    open=hist['Open'], high=hist['High'],
+                    low=hist['Low'], close=hist['Close'],
+                    increasing_line_color='#58a6ff', decreasing_line_color='#f78166'
+                )])
+                fig.update_layout(height=300, margin=dict(l=0, r=0, t=0, b=0), template="plotly_dark", xaxis_rangeslider_visible=False)
+                st.plotly_chart(fig, use_container_width=True)
+
+            except Exception as e:
+                st.warning(f"SKIP {ticker}: Market Data Timeout")
+
+else:
+    # Landing State
+    st.info("System Ready. Input a sector in the left panel and click 'Execute' to begin research.")
 
 st.divider()
-st.caption("Financial Disclaimer: For educational use only. Verify all data via official exchange filings.")
+st.caption("CONFIDENTIAL | FOR INSTITUTIONAL USE ONLY | DATA DELAYED 15M")
