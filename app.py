@@ -4,19 +4,19 @@ from google import genai
 import yfinance as yf
 import re
 
-# 1. Page Config & Styling
+# 1. Page Config
 st.set_page_config(page_title="Moonshot Finder 2026", layout="wide", page_icon="🚀")
 
-# Modern way to inject CSS in 2026 using st.html
+# Modern CSS injection
 st.html("""
     <style>
-    .reportview-container { background: #fafafa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .stDataFrame { border: 1px solid #e6e9ef; border-radius: 10px; }
+    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #007bff; color: white; }
     </style>
 """)
 
 st.title("🚀 Asymmetric Moonshot Finder")
-st.caption("Tier 2/3 Supply Chain Intelligence | Powered by Gemini 3 Flash")
+st.caption("Tier 2/3 Supply Chain Intelligence | March 2026 Edition")
 
 # 2. API Key Security
 if "GEMINI_API_KEY" not in st.secrets:
@@ -26,26 +26,24 @@ if "GEMINI_API_KEY" not in st.secrets:
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # 3. Sidebar Inputs
-st.sidebar.header("Target Sector")
-sector = st.sidebar.text_input(
-    "Supply Chain Bottleneck:", 
-    "SMR Nuclear Valves"
-)
+st.sidebar.header("Research Parameters")
+sector = st.sidebar.text_input("Supply Chain Bottleneck:", "AI Data Center Cooling")
 
-# 4. Main Execution logic
-if st.button("Run Deep Research & Valuation"):
+# 4. Main Logic
+if st.button("Generate Alpha Report"):
     # --- PHASE 1: GENAI RESEARCH ---
-    with st.spinner("Scanning global supply chains via Gemini..."):
+    with st.spinner("Analyzing global supply chains..."):
         try:
             client = genai.Client(api_key=GEMINI_API_KEY)
             
-            # 2026 Current Model ID
-            MODEL_ID = "gemini-3-flash" 
+            # Using the STABLE alias to prevent 404 errors
+            # gemini-2.5-flash is currently the production-stable version
+            MODEL_ID = "gemini-2.5-flash" 
             
             prompt = (
                 f"Identify 3 obscure, publicly traded Tier 2 or Tier 3 suppliers for {sector}. "
-                "Provide a brief investment thesis for each. "
-                "List their exact stock tickers at the very end like this: "
+                "Focus on small-cap companies with asymmetric upside. "
+                "Format your response with a thesis for each, and end exactly with: "
                 "TICKERS: TICKER1, TICKER2, TICKER3"
             )
             
@@ -55,62 +53,62 @@ if st.button("Run Deep Research & Valuation"):
             )
             
             thesis_text = response.text
-            st.subheader("💡 LLM Investment Thesis")
+            st.subheader("💡 Investment Thesis")
             st.info(thesis_text)
             
         except Exception as e:
             st.error(f"Gemini API Error: {e}")
             st.stop()
 
-    # --- PHASE 2: DATA EXTRACTION ---
-    with st.spinner("Extracting market data..."):
-        # Robust Regex to catch tickers
-        tickers_match = re.search(r'TICKERS:?\s*([\w\s,]+)', thesis_text, re.IGNORECASE)
+    # --- PHASE 2: DATA EXTRACTION & YFINANCE ---
+    with st.spinner("Fetching real-time market data..."):
+        # Improved Regex to find tickers after the keyword 'TICKERS:'
+        match = re.search(r'TICKERS:?\s*([\w\s,.]+)', thesis_text, re.IGNORECASE)
         
-        if tickers_match:
-            raw_string = tickers_match.group(1)
-            tickers = [t.strip().upper() for t in raw_string.split(',') if t.strip()]
+        if match:
+            raw_list = match.group(1).replace('.', '').split(',')
+            tickers = [t.strip().upper() for t in raw_list if t.strip()]
             
-            metrics_list = []
+            metrics = []
             for ticker in tickers:
                 try:
                     stock = yf.Ticker(ticker)
+                    # We use a 2-second timeout for info to keep the app snappy
                     info = stock.info
                     
-                    # Fetching core metrics
                     price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
                     mkt_cap = info.get('marketCap', 0)
                     
-                    metrics_list.append({
+                    metrics.append({
                         "Ticker": ticker,
                         "Company": info.get('longName', 'Unknown'),
                         "Price": price,
                         "Market Cap": mkt_cap,
-                        "Forward P/E": info.get('forwardPE', 'N/A'),
-                        "Volume": info.get('regularMarketVolume', 'N/A')
+                        "Div Yield": info.get('dividendYield', 0),
+                        "Volume": info.get('regularMarketVolume', 0)
                     })
                 except:
-                    continue 
+                    continue
 
-            # --- PHASE 3: DASHBOARD DISPLAY ---
-            if metrics_list:
-                st.subheader("📊 Real-Time Market Metrics")
-                df = pd.DataFrame(metrics_list)
+            if metrics:
+                st.subheader("📊 Quantitative Snapshot")
+                df = pd.DataFrame(metrics)
                 
-                # Format Market Cap for human eyes
-                def format_mkt_cap(num):
-                    if not isinstance(num, (int, float)) or num == 0: return "N/A"
-                    if num >= 1e9: return f"${num/1e9:.2f}B"
-                    return f"${num/1e6:.2f}M"
-                
+                # Cleanup formatting
+                def format_mkt_cap(val):
+                    if val >= 1e9: return f"${val/1e9:.2f}B"
+                    if val >= 1e6: return f"${val/1e6:.2f}M"
+                    return "N/A"
+
                 df['Market Cap'] = df['Market Cap'].apply(format_mkt_cap)
                 df['Price'] = df['Price'].apply(lambda x: f"${x:,.2f}" if x > 0 else "N/A")
-                
+                df['Div Yield'] = df['Div Yield'].apply(lambda x: f"{x*100:.2f}%" if x else "0%")
+
                 st.dataframe(df, use_container_width=True, hide_index=True)
             else:
-                st.error("No financial data found. The AI might have suggested invalid tickers.")
+                st.warning("Could not find market data for the suggested tickers.")
         else:
-            st.error("Could not parse tickers. Try running the research again.")
+            st.error("The AI didn't provide tickers in the requested format. Please try again.")
 
 st.divider()
-st.caption("AI-generated insights. Verify all tickers before trading.")
+st.caption("Financial Disclaimer: For educational use only. Verify all data via official exchange filings.")
