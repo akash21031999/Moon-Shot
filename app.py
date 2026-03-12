@@ -1,57 +1,97 @@
 import streamlit as st
 import pandas as pd
 from google import genai
-from google.api_core import exceptions
 import yfinance as yf
 import re
-import time
 
-st.set_page_config(page_title="Asymmetric Moonshot Finder", layout="wide")
-st.title("🚀 Asymmetric Moonshot Finder")
+# Set page configuration
+st.set_page_config(page_title="Asymmetric Moonshot Finder", layout="wide", page_icon="🚀")
+
+st.title("🚀 Asymmetric Moonshot Finder: Tier 2/3 Supply Chain")
 
 # --- API KEY CHECK ---
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("Missing GEMINI_API_KEY in Streamlit Secrets.")
+    st.error("Please add your 'GEMINI_API_KEY' to Streamlit Secrets.")
     st.stop()
 
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
-sector = st.sidebar.text_input("Enter Supply Chain Bottleneck:", "SMR Nuclear Valves")
+# --- SIDEBAR SETTINGS ---
+st.sidebar.header("Framework Settings")
+sector = st.sidebar.text_input(
+    "Enter Supply Chain Bottleneck (e.g., SMR Nuclear Valves, AI Data Center Cooling):", 
+    "SMR Nuclear Valves"
+)
 
-if st.button("Research Suppliers"):
-    try:
-        with st.spinner("Consulting Gemini..."):
-            # We use 1.5-flash as a fallback as it sometimes has more stable free quotas
-            response = client.models.generate_content(
-                model="gemini-1.5-flash", 
-                contents=f"Identify 3 obscure Tier 2/3 public suppliers for {sector}. End with 'TICKERS: TKR1, TKR2' format."
+# --- RESEARCH ENGINE ---
+if st.button("Research Suppliers & Extract Metrics"):
+    with st.spinner(f"Analyzing {sector} using Google Gemini..."):
+        try:
+            # Initialize the new GenAI client
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            prompt = (
+                f"Identify 3 obscure, publicly traded Tier 2 or Tier 3 suppliers for {sector}. "
+                "Focus on asymmetric moonshot bets based on recent market news. "
+                "Return a brief investment thesis for each and list their exact stock tickers "
+                "in a comma-separated format at the very end of your response like this: TICKERS: AAPL, MSFT, TSLA"
             )
+            
+            # Use the correct model name (e.g., gemini-2.0-flash or gemini-1.5-flash)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=prompt
+            )
+            
             thesis = response.text
-            st.subheader("Investment Thesis")
-            st.write(thesis)
+            st.subheader("LLM Supply Chain Verdict")
+            st.info(thesis)
+            
+        except Exception as e:
+            st.error(f"Error communicating with Gemini: {e}")
+            st.stop()
 
-            # --- TICKER EXTRACTION ---
-            tickers_match = re.search(r'TICKERS:\s*([A-Z,\s]+)', thesis)
-            if tickers_match:
-                tickers = [t.strip() for t in tickers_match.group(1).split(',') if t.strip()]
-                
-                metrics = []
-                for t in tickers:
-                    stock = yf.Ticker(t)
-                    # Use a small delay to avoid rate limiting yfinance
-                    time.sleep(0.2) 
+    with st.spinner("Extracting Tickers and Fetching Quantitative Data..."):
+        # Extract Tickers using Regex
+        # Looking for the pattern "TICKERS: TICKER1, TICKER2"
+        tickers_match = re.search(r'TICKERS:\s*([A-Z0-9,\s\.]+)', thesis, re.IGNORECASE)
+        
+        if tickers_match:
+            raw_tickers = tickers_match.group(1).split(',')
+            tickers = [t.strip().upper() for t in raw_tickers if t.strip()]
+            
+            metrics_data = []
+            for ticker in tickers:
+                try:
+                    stock = yf.Ticker(ticker)
                     info = stock.info
-                    metrics.append({
-                        "Ticker": t,
-                        "Price": info.get('currentPrice', 'N/A'),
-                        "Market Cap": info.get('marketCap', 'N/A')
+                    
+                    # Handle price variations in yfinance dictionary
+                    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 'N/A')
+                    
+                    metrics_data.append({
+                        "Ticker": ticker,
+                        "Name": info.get('longName', 'N/A'),
+                        "Last Price": current_price,
+                        "Market Cap": info.get('marketCap', 'N/A'),
+                        "Trailing P/E": info.get('trailingPE', 'N/A'),
+                        "Volume": info.get('volume', 'N/A')
                     })
+                except Exception as e:
+                    st.warning(f"Could not fetch data for {ticker}: {e}")
+            
+            if metrics_data:
+                st.subheader("Quantitative Metrics (Real-Time)")
+                df = pd.DataFrame(metrics_data)
                 
-                st.table(pd.DataFrame(metrics))
-
-    except exceptions.ResourceExhausted as e:
-        st.error("⚠️ **Quota Exceeded (429):** Your Google Cloud project likely has '0' quota. "
-                 "Please ensure you have a billing account linked in the Google Cloud Console "
-                 "to activate the Free Tier.")
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+                # Format Market Cap for readability
+                if 'Market Cap' in df.columns:
+                    df['Market Cap'] = pd.to_numeric(df['Market Cap'], errors='coerce').apply(
+                        lambda x: f"${x:,.0f}" if pd.notnull(x) else "N/A"
+                    )
+                
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.error("No quantitative data could be retrieved for the extracted tickers.")
+        else:
+            st.error("Could not find tickers in the response. Ensure the LLM followed the 'TICKERS:' format.")
