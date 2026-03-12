@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import google.generativeai as genai
+from google import genai
 import yfinance as yf
 import re
 
@@ -10,22 +10,27 @@ st.title("🚀 Asymmetric Moonshot Finder: Tier 2/3 Supply Chain")
 
 # Safely load API Keys from Streamlit Secrets
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-genai.configure(api_key=GEMINI_API_KEY)
 
 st.sidebar.header("Framework Settings")
 sector = st.sidebar.text_input("Enter Supply Chain Bottleneck (e.g., SMR Nuclear Valves, AI Data Center Cooling):", "SMR Nuclear Valves")
 
 if st.button("Research Suppliers & Extract Metrics"):
     with st.spinner(f"Analyzing {sector} using Google Gemini..."):
-        # 1. Qualitative Research via Google Gemini API
-        # Switched back to gemini-pro to prevent the 404 v1beta error
-        model = genai.GenerativeModel('gemini-pro')
-        prompt = (f"Identify 3 obscure, publicly traded Tier 2 or Tier 3 suppliers for {sector}. "
-                  f"Focus on asymmetric moonshot bets based on recent market news. Return a brief investment thesis and list their exact stock tickers "
-                  f"in a comma-separated format at the very end of your response like this: TICKERS: AAPL, MSFT, TSLA")
-        
+        # 1. Qualitative Research via the NEW Google GenAI API
         try:
-            response = model.generate_content(prompt)
+            # Initialize the new client
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            prompt = (f"Identify 3 obscure, publicly traded Tier 2 or Tier 3 suppliers for {sector}. "
+                      f"Focus on asymmetric moonshot bets based on recent market news. Return a brief investment thesis and list their exact stock tickers "
+                      f"in a comma-separated format at the very end of your response like this: TICKERS: AAPL, MSFT, TSLA")
+            
+            # Using the new model generation syntax
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            
             thesis = response.text
             st.subheader("LLM Supply Chain Verdict")
             st.write(thesis)
