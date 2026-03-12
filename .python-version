@@ -1,1 +1,4 @@
 3.11
+git add requirements.txt app.py
+git commit -m "Fix Python 3.14 compatibility and switch to YFinance"
+git push origin main
