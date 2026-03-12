@@ -3,109 +3,123 @@ import pandas as pd
 from google import genai
 import yfinance as yf
 import re
-import plotly.graph_objects as go
 
-# 1. Terminal Styling (Dark Mode & High Density)
-st.set_page_config(page_title="ALPHA TERMINAL v3", layout="wide", page_icon="⚡")
+# 1. Terminal Configuration
+st.set_page_config(page_title="Supply Chain Alpha Terminal", layout="wide", page_icon="🌐")
 
+# Center Content & Style Table
 st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] { background-color: #0e1117; color: #ffffff; }
-    .stMetric { background-color: #1a1c24; border: 1px solid #30363d; padding: 15px; border-radius: 5px; }
-    .stDataFrame { border: 1px solid #30363d; }
-    .stButton>button { width: 100%; border-radius: 2px; background-color: #21262d; border: 1px solid #30363d; color: #58a6ff; }
-    .stButton>button:hover { border-color: #58a6ff; }
-    h1, h2, h3 { color: #58a6ff !important; font-family: 'Courier New', monospace; }
+    .block-container { padding-top: 2rem; max-width: 900px; }
+    .stTable { font-size: 14px; }
+    .stMetric { background-color: #161b22; border-radius: 10px; padding: 10px; border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Setup
+# 2. API Key Check
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("MISSING API KEY")
+    st.error("Please add GEMINI_API_KEY to Streamlit Secrets.")
     st.stop()
 
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 3. Sidebar (Search & Filter)
-with st.sidebar:
-    st.title("🗄️ TERMINAL CTL")
-    sector_input = st.text_input("STRATEGY FOCUS:", "AI Power Grid Hardware")
-    st.divider()
-    model_choice = st.selectbox("LLM ENGINE", ["gemini-2.5-flash", "gemini-3-flash-preview"])
-    st.caption("v3.2.0-stable | Build: 2026.03")
+# 3. Centered Search UI
+st.title("🌐 Supply Chain Intelligence")
+st.caption("Tier 2 & 3 Asymmetric Research Engine | March 2026")
 
-# 4. Main Header
-st.title("⚡ ALPHA TERMINAL: SUPPLY CHAIN INTELLIGENCE")
+# Centered Search Bar
+with st.container():
+    sector = st.text_input("ENTER INDUSTRY OR SUPPLY CHAIN BOTTLENECK:", 
+                          placeholder="e.g. SMR Nuclear Valves, Neon Gas Suppliers, HBM Chip Packaging",
+                          label_visibility="collapsed")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        search_button = st.button("RUN DEEP RESEARCH REPORT", use_container_width=True, type="primary")
 
-# 5. Core Execution logic
-if st.button("EXECUTE DEEP RESEARCH"):
-    # --- PHASE 1: QUALITATIVE INTELLIGENCE ---
-    with st.spinner("QUERYING GLOBAL SUPPLY CHAIN DATA..."):
+# 4. Main Research Flow
+if search_button and sector:
+    # --- PHASE 1: SECTOR ANALYSIS ---
+    with st.spinner("Analyzing Supply Chain Tiers..."):
         try:
+            # Model ID updated for March 2026 stability
+            MODEL_ID = "gemini-3-flash-preview" 
+            
             prompt = (
-                f"Identify 3 publicly traded companies that are critical but obscure Tier 2/3 suppliers for {sector_input}. "
-                "Provide a professional 'Institutional Note' for each. "
-                "At the end, provide exactly: TICKERS: T1, T2, T3"
+                f"Perform deep research on the {sector} supply chain. "
+                "1. Explain the current bottleneck or industry state. "
+                "2. Identify the critical Tier 2 or Tier 3 players that actually own the IP or materials. "
+                "3. Select 3 publicly traded companies (obscure small/mid caps preferred). "
+                "For each company, provide a 'Thesis' and a 'Risk Factor'. "
+                "At the very end of your response, strictly include: TICKERS: T1, T2, T3"
             )
-            response = client.models.generate_content(model=model_choice, contents=prompt)
-            raw_text = response.text
+            
+            response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+            report_text = response.text
             
             # Extract Tickers
-            match = re.search(r'TICKERS:?\s*([\w\s,]+)', raw_text, re.IGNORECASE)
+            match = re.search(r'TICKERS:?\s*([\w\s,]+)', report_text, re.IGNORECASE)
             tickers = [t.strip().upper() for t in match.group(1).split(',')] if match else []
-            
-            # Display Research Note
-            with st.expander("📝 VIEW INSTITUTIONAL RESEARCH NOTE", expanded=True):
-                st.write(raw_text)
-                
+
+            # --- DISPLAY RESEARCH FIRST ---
+            st.markdown("---")
+            st.subheader(f"📑 {sector.upper()} STRATEGIC REPORT")
+            st.markdown(report_text.split("TICKERS:")[0]) # Show research, hide raw ticker line
+
         except Exception as e:
-            st.error(f"RESEARCH_FAILURE: {e}")
+            st.error(f"Intelligence Error: {e}")
             st.stop()
 
-    # --- PHASE 2: QUANTITATIVE DASHBOARD ---
+    # --- PHASE 2: ANALYST COVERAGE TABLE ---
     if tickers:
-        st.subheader("📊 QUANTITATIVE OVERVIEW")
+        st.subheader("📊 INSTITUTIONAL METRICS & ANALYST TARGETS")
         
-        # We loop through tickers and show them in a mobile-friendly grid
+        metrics_data = []
         for ticker in tickers:
-            try:
-                stock = yf.Ticker(ticker)
-                info = stock.info
-                hist = stock.history(period="1mo")
-                
-                # Header for each company
-                st.divider()
-                col_title, col_price = st.columns([3, 1])
-                with col_title:
-                    st.header(f"{ticker}: {info.get('longName', 'N/A')}")
-                with col_price:
-                    price = info.get('currentPrice', 0)
-                    change = info.get('regularMarketChangePercent', 0)
-                    st.metric("PRICE", f"${price:.2f}", f"{change:.2f}%")
+            with st.spinner(f"Verifying {ticker}..."):
+                try:
+                    stock = yf.Ticker(ticker)
+                    info = stock.info
+                    
+                    # Core Financials
+                    price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
+                    target = info.get('targetMedianPrice', 'N/A')
+                    rec = info.get('recommendationKey', 'N/A').replace('_', ' ').title()
+                    
+                    # Calculate Upside
+                    upside = "N/A"
+                    if isinstance(target, (int, float)) and price > 0:
+                        pct = ((target - price) / price) * 100
+                        upside = f"{pct:+.2f}%"
 
-                # Bloomberg-style Key Ratios
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("MKT CAP", f"${info.get('marketCap', 0)/1e9:.2f}B")
-                c2.metric("FWD P/E", info.get('forwardPE', 'N/A'))
-                c3.metric("ROE", f"{info.get('returnOnEquity', 0)*100:.2f}%")
-                c4.metric("D/E RATIO", info.get('debtToEquity', 'N/A'))
+                    metrics_data.append({
+                        "Ticker": ticker,
+                        "Company": info.get('shortName', ticker),
+                        "Current Price": f"${price:,.2f}" if price else "N/A",
+                        "Analyst Target": f"${target}" if target != 'N/A' else "N/A",
+                        "Projected Upside": upside,
+                        "Rating": rec,
+                        "Market Cap": f"${info.get('marketCap', 0)/1e9:.2f}B" if info.get('marketCap') else "N/A",
+                        "PE Ratio": info.get('forwardPE', 'N/A')
+                    })
+                except:
+                    continue
 
-                # mini Chart (Plotly)
-                fig = go.Figure(data=[go.Candlestick(
-                    x=hist.index,
-                    open=hist['Open'], high=hist['High'],
-                    low=hist['Low'], close=hist['Close'],
-                    increasing_line_color='#58a6ff', decreasing_line_color='#f78166'
-                )])
-                fig.update_layout(height=300, margin=dict(l=0, r=0, t=0, b=0), template="plotly_dark", xaxis_rangeslider_visible=False)
-                st.plotly_chart(fig, use_container_width=True)
-
-            except Exception as e:
-                st.warning(f"SKIP {ticker}: Market Data Timeout")
+        if metrics_data:
+            # Create professional table
+            df = pd.DataFrame(metrics_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            # Mobile-friendly summary cards
+            st.markdown("### Quick Insights")
+            cols = st.columns(len(metrics_data))
+            for i, row in enumerate(metrics_data):
+                with cols[i]:
+                    st.metric(row['Ticker'], row['Current Price'], row['Projected Upside'])
+        else:
+            st.warning("Financial data currently unavailable for these specific tickers.")
 
 else:
-    # Landing State
-    st.info("System Ready. Input a sector in the left panel and click 'Execute' to begin research.")
-
-st.divider()
-st.caption("CONFIDENTIAL | FOR INSTITUTIONAL USE ONLY | DATA DELAYED 15M")
+    # Initial State
+    st.divider()
+    st.info("💡 **Institutional Tip:** Search for specific components like 'EUV Lithography Lasers' or 'Solid State Electrolyte Suppliers' for better Tier 3 results.")
