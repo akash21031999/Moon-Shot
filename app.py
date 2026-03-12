@@ -1,125 +1,119 @@
 import streamlit as st
 import pandas as pd
 from google import genai
+from google.genai import types
 import yfinance as yf
 import re
 
-# 1. Terminal Configuration
-st.set_page_config(page_title="Supply Chain Alpha Terminal", layout="wide", page_icon="🌐")
+# 1. Page Configuration & Theme
+st.set_page_config(page_title="ALPHA TERMINAL v5", layout="wide", page_icon="🏦")
 
-# Center Content & Style Table
 st.markdown("""
     <style>
-    .block-container { padding-top: 2rem; max-width: 900px; }
-    .stTable { font-size: 14px; }
-    .stMetric { background-color: #161b22; border-radius: 10px; padding: 10px; border: 1px solid #30363d; }
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+    html, body, [data-testid="stAppViewContainer"] { background-color: #05070a; color: #00ffaa; font-family: 'Roboto Mono', monospace; }
+    .stMetric { background: #0c1015; border: 1px solid #1f2937; padding: 15px; border-radius: 4px; }
+    .report-box { background: #0c1015; border: 1px solid #1f2937; padding: 25px; border-radius: 8px; line-height: 1.6; color: #e5e7eb; }
+    .news-card { border-bottom: 1px solid #1f2937; padding: 10px 0; }
+    .stButton>button { background: #00ffaa; color: black; border-radius: 0; font-weight: bold; width: 100%; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. API Key Check
+# 2. Client Initialization with Grounding
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("Please add GEMINI_API_KEY to Streamlit Secrets.")
+    st.error("Missing API Key.")
     st.stop()
 
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 3. Centered Search UI
-st.title("🌐 Supply Chain Intelligence")
-st.caption("Tier 2 & 3 Asymmetric Research Engine | March 2026")
-
-# Centered Search Bar
-with st.container():
-    sector = st.text_input("ENTER INDUSTRY OR SUPPLY CHAIN BOTTLENECK:", 
-                          placeholder="e.g. SMR Nuclear Valves, Neon Gas Suppliers, HBM Chip Packaging",
-                          label_visibility="collapsed")
+# 3. Intelligence Logic (Stress-Run AI)
+def run_deep_research(query):
+    is_ticker = query.startswith("$")
+    target = query.replace("$", "").upper()
     
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        search_button = st.button("RUN DEEP RESEARCH REPORT", use_container_width=True, type="primary")
+    # Grounding Configuration (Live Web Access)
+    google_search_tool = types.Tool(google_search=types.GoogleSearch())
+    config = types.GenerateContentConfig(
+        tools=[google_search_tool],
+        temperature=0.2 # Lower temperature for "Stress-Run" precision
+    )
 
-# 4. Main Research Flow
-if search_button and sector:
-    # --- PHASE 1: SECTOR ANALYSIS ---
-    with st.spinner("Analyzing Supply Chain Tiers..."):
-        try:
-            # Model ID updated for March 2026 stability
-            MODEL_ID = "gemini-3-flash-preview" 
-            
-            prompt = (
-                f"Perform deep research on the {sector} supply chain. "
-                "1. Explain the current bottleneck or industry state. "
-                "2. Identify the critical Tier 2 or Tier 3 players that actually own the IP or materials. "
-                "3. Select 3 publicly traded companies (obscure small/mid caps preferred). "
-                "For each company, provide a 'Thesis' and a 'Risk Factor'. "
-                "At the very end of your response, strictly include: TICKERS: T1, T2, T3"
-            )
-            
-            response = client.models.generate_content(model=MODEL_ID, contents=prompt)
-            report_text = response.text
-            
-            # Extract Tickers
-            match = re.search(r'TICKERS:?\s*([\w\s,]+)', report_text, re.IGNORECASE)
-            tickers = [t.strip().upper() for t in match.group(1).split(',')] if match else []
+    if is_ticker:
+        prompt = f"""
+        STRESS-RUN ANALYSIS: {target}
+        1. MACRO/MICRO: Scour live news and Meta/Social sentiment for {target}. What is the 'real' market consensus?
+        2. RESULTS: Analyze the latest quarterly results and management's tone (Hawkish/Dovish).
+        3. ASYMMETRIC BETS: Identify the supply chain for {target}. Is there a Tier 2/3 supplier that is a BETTER bet than {target}?
+        4. SELF-CRITIQUE: Evaluate the risks of {target} vs these suppliers.
+        STRICT: End with 'TICKERS: {target}, [BET_TICKER_1], [BET_TICKER_2]'
+        """
+    else:
+        prompt = f"""
+        SUPPLY CHAIN MAPPER: {query}
+        1. MAP: Detail the Tier 1, 2, and 3 players for {query}.
+        2. BOTTLENECK: Who owns the critical patents or raw materials?
+        3. ASYMMETRIC PLAYS: Suggest 3 obscure public companies with massive upside potential.
+        STRICT: End with 'TICKERS: [T1], [T2], [T3]'
+        """
+    
+    return client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=prompt,
+        config=config
+    )
 
-            # --- DISPLAY RESEARCH FIRST ---
-            st.markdown("---")
-            st.subheader(f"📑 {sector.upper()} STRATEGIC REPORT")
-            st.markdown(report_text.split("TICKERS:")[0]) # Show research, hide raw ticker line
+# 4. Interface Layout
+st.title("🏦 ALPHA TERMINAL | AGENTIC v5")
+st.caption("Live Grounding Enabled | Supply Chain Intelligence | March 2026")
 
-        except Exception as e:
-            st.error(f"Intelligence Error: {e}")
-            st.stop()
+user_input = st.text_input("RESEARCH TARGET:", placeholder="e.g. 'Solid State Electrolytes' or '$NVDA'")
 
-    # --- PHASE 2: ANALYST COVERAGE TABLE ---
-    if tickers:
-        st.subheader("📊 INSTITUTIONAL METRICS & ANALYST TARGETS")
+if st.button("RUN DEEP ALPHA SCAN"):
+    with st.spinner("AGENT STRESS-TESTING DATA..."):
+        response = run_deep_research(user_input)
+        report_body = response.text
         
-        metrics_data = []
-        for ticker in tickers:
-            with st.spinner(f"Verifying {ticker}..."):
-                try:
-                    stock = yf.Ticker(ticker)
-                    info = stock.info
-                    
-                    # Core Financials
-                    price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
-                    target = info.get('targetMedianPrice', 'N/A')
-                    rec = info.get('recommendationKey', 'N/A').replace('_', ' ').title()
-                    
-                    # Calculate Upside
-                    upside = "N/A"
-                    if isinstance(target, (int, float)) and price > 0:
-                        pct = ((target - price) / price) * 100
-                        upside = f"{pct:+.2f}%"
-
-                    metrics_data.append({
-                        "Ticker": ticker,
-                        "Company": info.get('shortName', ticker),
-                        "Current Price": f"${price:,.2f}" if price else "N/A",
-                        "Analyst Target": f"${target}" if target != 'N/A' else "N/A",
-                        "Projected Upside": upside,
-                        "Rating": rec,
-                        "Market Cap": f"${info.get('marketCap', 0)/1e9:.2f}B" if info.get('marketCap') else "N/A",
-                        "PE Ratio": info.get('forwardPE', 'N/A')
-                    })
-                except:
-                    continue
-
-        if metrics_data:
-            # Create professional table
-            df = pd.DataFrame(metrics_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+        # Display Research
+        st.markdown("### 🧠 ANALYST INTELLIGENCE")
+        st.markdown(f"<div class='report-box'>{report_body.split('TICKERS:')[0]}</div>", unsafe_allow_html=True)
+        
+        # Extract Tickers
+        match = re.search(r'TICKERS:?\s*([\w\s,$.\[\]]+)', report_body, re.IGNORECASE)
+        if match:
+            tickers = [t.strip().upper().replace('$', '').replace('[','').replace(']','') for t in match.group(1).split(',')]
             
-            # Mobile-friendly summary cards
-            st.markdown("### Quick Insights")
-            cols = st.columns(len(metrics_data))
-            for i, row in enumerate(metrics_data):
-                with cols[i]:
-                    st.metric(row['Ticker'], row['Current Price'], row['Projected Upside'])
+            # --- MARKET DATA TABLE ---
+            st.markdown("### 📊 FINANCIAL WORKSTATION")
+            financials = []
+            for t in tickers:
+                try:
+                    s = yf.Ticker(t)
+                    info = s.info
+                    financials.append({
+                        "TICKER": t,
+                        "COMPANY": info.get('shortName', 'N/A'),
+                        "PRICE": f"${info.get('currentPrice', 0):,.2f}",
+                        "UPSIDE": f"{((info.get('targetMedianPrice', 0)-info.get('currentPrice', 0))/info.get('currentPrice', 1)*100):+.1f}%",
+                        "RATIO (P/E)": info.get('forwardPE', 'N/A'),
+                        "MCAP": f"${info.get('marketCap', 0)/1e9:.1f}B"
+                    })
+                except: continue
+            st.table(pd.DataFrame(financials))
+
+            # --- NEWS FEED (THE REQUESTED FEATURE) ---
+            st.markdown("### 📰 LIVE INTELLIGENCE FEED")
+            n_cols = st.columns(len(tickers))
+            for idx, t in enumerate(tickers):
+                with n_cols[idx]:
+                    st.write(f"**{t} News**")
+                    news_items = yf.Search(t, news_count=5).news
+                    for n in news_items:
+                        st.markdown(f"<div class='news-card'><a href='{n['link']}' style='color:#00ffaa;'>{n['title']}</a><br><small>{n['publisher']}</small></div>", unsafe_allow_html=True)
         else:
-            st.warning("Financial data currently unavailable for these specific tickers.")
+            st.warning("Could not identify specific tickers for market data.")
 
 else:
-    # Initial State
-    st.divider()
-    st.info("💡 **Institutional Tip:** Search for specific components like 'EUV Lithography Lasers' or 'Solid State Electrolyte Suppliers' for better Tier 3 results.")
+    st.info("Terminal Idle. Input a Ticker (with $) or Sector to engage Research Agent.")
+
+st.divider()
+st.caption("INTERNAL USE ONLY - System Grounded via Google Search API")
