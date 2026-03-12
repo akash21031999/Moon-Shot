@@ -18,7 +18,8 @@ sector = st.sidebar.text_input("Enter Supply Chain Bottleneck (e.g., SMR Nuclear
 if st.button("Research Suppliers & Extract Metrics"):
     with st.spinner(f"Analyzing {sector} using Google Gemini..."):
         # 1. Qualitative Research via Google Gemini API
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Switched back to gemini-pro to prevent the 404 v1beta error
+        model = genai.GenerativeModel('gemini-pro')
         prompt = (f"Identify 3 obscure, publicly traded Tier 2 or Tier 3 suppliers for {sector}. "
                   f"Focus on asymmetric moonshot bets based on recent market news. Return a brief investment thesis and list their exact stock tickers "
                   f"in a comma-separated format at the very end of your response like this: TICKERS: AAPL, MSFT, TSLA")
@@ -33,7 +34,7 @@ if st.button("Research Suppliers & Extract Metrics"):
             st.stop()
 
     with st.spinner("Extracting Tickers and Fetching Quantitative Data via YFinance..."):
-        # 2. Extract Tickers using Regex (Fixed backslashes)
+        # 2. Extract Tickers using Regex
         tickers_match = re.search(r'TICKERS:\s*([A-Z,\s]+)', thesis)
         if tickers_match:
             raw_tickers = tickers_match.group(1).split(',')
@@ -65,6 +66,7 @@ if st.button("Research Suppliers & Extract Metrics"):
             if metrics_data:
                 st.subheader("Quantitative Metrics (Real-Time)")
                 df = pd.DataFrame(metrics_data)
+                
                 # Format the Market Cap to be more readable if it's a number
                 if 'Market Cap' in df.columns:
                     df['Market Cap'] = pd.to_numeric(df['Market Cap'], errors='coerce').apply(
